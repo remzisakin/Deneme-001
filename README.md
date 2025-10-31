@@ -31,7 +31,7 @@ sales-llm-app/
    pip install -r sales-llm-app/requirements.txt
    ```
 2. Ortam değişkenleri için `.env.example` dosyasını `.env` olarak kopyalayın ve gerekli anahtarları doldurun.
-3. FastAPI arka ucunu çalıştırın:
+3. FastAPI arka ucunu çalıştırın (deponun kök dizininden komut çalıştırılabilir):
    ```bash
    uvicorn backend.main:app --host 0.0.0.0 --port 8000
    ```
