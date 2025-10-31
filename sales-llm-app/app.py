@@ -1,15 +1,19 @@
 """Streamlit front-end for the Sales & LLM analysis platform."""
 from __future__ import annotations
 
+import io
 import json
 import os
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 from dotenv import load_dotenv
+
+from backend.services.etl import parse_cpi_excel
+from backend.services.stats import make_summaries
 
 load_dotenv()
 
@@ -42,18 +46,32 @@ def _init_http_client() -> None:
 
 _init_http_client()
 
+SUMMARY_STATE_KEY = "cpi_summary_df"
+
 with st.sidebar:
     st.header("Yükleme ve Filtreler")
     uploaded_file = st.file_uploader("Satış raporu yükle", type=["csv", "xlsx", "pdf"])
     if uploaded_file is not None:
+        file_bytes = uploaded_file.getvalue()
         with st.spinner("Dosya yükleniyor..."):
-            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+            files = {"file": (uploaded_file.name, file_bytes, uploaded_file.type)}
             response = st.session_state.http_client.post(f"{BACKEND_URL}/ingest/upload", files=files)
             if response.status_code == 200:
                 st.success("Dosya başarıyla kuyruğa alındı. Analiz tamamlandığında tabloya eklenecek.")
             else:
                 st.error(f"Yükleme başarısız: {response.text}")
 
+        if uploaded_file.name.lower().endswith((".xlsx", ".xls")):
+            try:
+                df_norm = parse_cpi_excel(io.BytesIO(file_bytes))
+                st.session_state[SUMMARY_STATE_KEY] = df_norm
+            except Exception as exc:  # pragma: no cover - Excel parsing edge cases
+                st.error(f"Excel dosyası parse edilemedi: {exc}")
+                st.session_state[SUMMARY_STATE_KEY] = pd.DataFrame()
+        else:
+            # Clear previously parsed CPI data if a non-Excel file is uploaded.
+            st.session_state[SUMMARY_STATE_KEY] = None
+    
     st.markdown("---")
     start_date = st.date_input("Başlangıç tarihi", value=None)
     end_date = st.date_input("Bitiş tarihi", value=None)
@@ -68,6 +86,47 @@ with st.sidebar:
         st.write(pd.DataFrame(recent))
     except Exception:
         st.info("Henüz yüklenmiş veri yok.")
+
+summary_df = st.session_state.get(SUMMARY_STATE_KEY)
+
+if summary_df is not None:
+    if summary_df.empty:
+        st.warning("Veri bulunamadı.")
+    else:
+        by_engineer, by_customer, totals = make_summaries(summary_df)
+
+        st.markdown("## 🧾 Özet")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Toplam OR MTD", f"{summary_df['OR_MTD'].sum():,.2f}")
+        c2.metric("Toplam OI MTD", f"{summary_df['OI_MTD'].sum():,.2f}")
+        top_engineer = by_engineer.head(1)
+        c3.metric(
+            "En Yüksek OR Mühendisi",
+            str(top_engineer["sales_engineer"].iloc[0]) if not top_engineer.empty else "-",
+            f"{top_engineer['OR_MTD'].iloc[0]:,.2f}" if not top_engineer.empty else None,
+        )
+
+        st.markdown("### 👨‍💼 Satış Mühendisi Bazında")
+        st.dataframe(by_engineer, use_container_width=True)
+
+        st.markdown("### 👤 Müşteri Bazında")
+        st.dataframe(by_customer, use_container_width=True)
+
+        st.markdown("### ∑ Genel Toplamlar")
+        st.dataframe(totals, use_container_width=True)
+
+        st.download_button(
+            "Mühendis Özeti (CSV)",
+            by_engineer.to_csv(index=False).encode("utf-8"),
+            "summary_by_engineer.csv",
+            "text/csv",
+        )
+        st.download_button(
+            "Müşteri Özeti (CSV)",
+            by_customer.to_csv(index=False).encode("utf-8"),
+            "summary_by_customer.csv",
+            "text/csv",
+        )
 
 if run_analysis:
     filters = {

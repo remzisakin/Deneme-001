@@ -194,3 +194,78 @@ def list_recent_sources(limit: int = 20) -> List[Dict[str, str]]:
         for row in rows
     ]
 
+
+def parse_cpi_excel(path: str | io.BufferedIOBase) -> pd.DataFrame:
+    """Normalise CPI salesman Excel exports into a consistent dataframe.
+
+    The CPI reports arrive with the first row acting as the header and
+    inconsistent spacing in column names. This helper promotes the first row to
+    headers, cleans up the textual fields and extracts the trailing MTD metric
+    columns as numeric values.
+
+    Parameters
+    ----------
+    path:
+        File-system path or file-like object pointing to the CPI Excel export.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Dataframe containing the canonical columns required by the UI layer.
+    """
+
+    # Read the worksheet without assuming headers so we can promote the first
+    # row to be the canonical header row.
+    df_raw = pd.read_excel(path, sheet_name=0, header=None)
+    if df_raw.empty:
+        return pd.DataFrame(columns=["company", "customer", "sales_engineer", "OR_MTD", "OI_MTD"])
+
+    header = df_raw.iloc[0].tolist()
+    df = df_raw.iloc[1:].copy()
+    df.columns = [str(h).strip() for h in header]
+
+    def _find_col(prefix: str) -> Optional[str]:
+        for column in df.columns:
+            if str(column).strip().lower().startswith(prefix.lower()):
+                return column
+        return None
+
+    col_company = _find_col("Operational Company")
+    col_customer = _find_col("Customer")
+    col_sales = _find_col("Sales Representative")
+
+    # Extract the dimensional columns if available; fall back to None when the
+    # CPI export omits the information (rare but observed in the field).
+    out = pd.DataFrame(
+        {
+            "company": df[col_company] if col_company else None,
+            "customer": df[col_customer] if col_customer else None,
+            "sales_engineer": df[col_sales] if col_sales else None,
+        }
+    )
+
+    if df.shape[1] < 2:
+        # Not enough columns to pick the MTD metrics; return empty frame.
+        return pd.DataFrame(columns=["company", "customer", "sales_engineer", "OR_MTD", "OI_MTD"])
+
+    # CPI exports use the last two columns as the month-to-date metrics.
+    or_col, oi_col = df.columns[-2], df.columns[-1]
+    out["OR_MTD"] = pd.to_numeric(df[or_col], errors="coerce")
+    out["OI_MTD"] = pd.to_numeric(df[oi_col], errors="coerce")
+
+    # Drop rows where both metrics are completely missing. Remaining NaNs are
+    # treated as zero for downstream aggregation safety.
+    out = out.dropna(subset=["OR_MTD", "OI_MTD"], how="all").fillna({"OR_MTD": 0, "OI_MTD": 0})
+
+    # Normalise textual dimensions by stripping whitespace and ensuring string
+    # dtype. A future hook for ID->name replacements can be slotted here.
+    for column in ["company", "customer", "sales_engineer"]:
+        if column in out.columns:
+            out[column] = out[column].astype(str).str.strip()
+
+    # Example hook for future ID to name mapping, e.g. Sales Representative IDs.
+    # mapping: dict[str, str] = {}
+    # out["sales_engineer"] = out["sales_engineer"].replace(mapping)
+
+    return out[["company", "customer", "sales_engineer", "OR_MTD", "OI_MTD"]]
+
