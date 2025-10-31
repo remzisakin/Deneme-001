@@ -9,22 +9,14 @@ import pandas as pd
 def _describe_with_datetime(df: pd.DataFrame) -> pd.DataFrame:
     """Return ``DataFrame.describe`` with graceful ``datetime`` support.
 
-    Newer pandas versions expose the ``datetime_is_numeric`` keyword that treats
-    ``datetime64`` columns as numeric values during aggregation.  Older releases
-    raise ``TypeError`` when the argument is provided.  The production
-    environment for the app still runs on an older pandas build which caused the
-    Streamlit "Veri Özeti" section to crash.  The helper tries the new keyword
-    first and transparently falls back to the classic behaviour when the
-    signature is incompatible.
+    Prior revisions attempted to pass ``datetime_is_numeric=True`` to
+    :meth:`pandas.DataFrame.describe` to coerce datetime columns into numeric
+    aggregations.  The keyword is not supported on all pandas versions which led
+    to runtime errors in some deployments.  The helper now relies on the
+    baseline behaviour to preserve compatibility.
     """
 
-    try:
-        return df.describe(include="all", datetime_is_numeric=True)
-    except TypeError:
-        # ``datetime_is_numeric`` landed in pandas 1.1.0.  On older installs the
-        # keyword is rejected, therefore we retry without it to preserve
-        # backwards compatibility.
-        return df.describe(include="all")
+    return df.describe(include="all")
 
 
 def profile_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
