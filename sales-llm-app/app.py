@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import io
-import json
 import os
-from datetime import date
 from typing import Any, Dict
 
 import pandas as pd
@@ -49,7 +47,7 @@ _init_http_client()
 SUMMARY_STATE_KEY = "cpi_summary_df"
 
 with st.sidebar:
-    st.header("Yükleme ve Filtreler")
+    st.header("Yükleme ve Analiz")
     uploaded_file = st.file_uploader("Satış raporu yükle", type=["csv", "xlsx", "pdf"])
     if uploaded_file is not None:
         file_bytes = uploaded_file.getvalue()
@@ -73,10 +71,6 @@ with st.sidebar:
             st.session_state[SUMMARY_STATE_KEY] = None
     
     st.markdown("---")
-    start_date = st.date_input("Başlangıç tarihi", value=None)
-    end_date = st.date_input("Bitiş tarihi", value=None)
-    region = st.text_input("Bölge filtresi")
-    category = st.text_input("Kategori filtresi")
     run_analysis = st.button("Analizi Çalıştır")
 
     st.markdown("---")
@@ -129,15 +123,9 @@ if summary_df is not None:
         )
 
 if run_analysis:
-    filters = {
-        "start_date": start_date.isoformat() if isinstance(start_date, date) else None,
-        "end_date": end_date.isoformat() if isinstance(end_date, date) else None,
-        "region": region or None,
-        "category": category or None,
-    }
     with st.spinner("Analiz çalıştırılıyor..."):
         try:
-            data = _api_post("/analyze/run", filters)
+            data = _api_post("/analyze/run", {})
             st.session_state["analysis_result"] = data
         except Exception as exc:  # pragma: no cover - network issues
             st.error(f"Analiz başarısız: {exc}")
@@ -145,7 +133,7 @@ if run_analysis:
 result = st.session_state.get("analysis_result")
 
 if not result:
-    st.info("Filtreleri ayarlayıp 'Analizi Çalıştır' butonuna basın.")
+    st.info("'Analizi Çalıştır' butonuna basın.")
     st.stop()
 
 kpi_cols = st.columns(4)
