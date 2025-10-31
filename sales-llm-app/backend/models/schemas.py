@@ -73,6 +73,6 @@ class NLQueryResult(BaseModel):
 
 class PromptContext(BaseModel):
     stats_json: Dict[str, Any]
-    anomalies_json: Dict[str, Any]
+    anomalies_json: List[Dict[str, Any]]
     pdf_context: List[str] = Field(default_factory=list)
 
