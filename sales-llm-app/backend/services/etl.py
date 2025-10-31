@@ -195,6 +195,38 @@ def list_recent_sources(limit: int = 20) -> List[Dict[str, str]]:
     ]
 
 
+def _read_excel_with_engines(path: str | io.BufferedIOBase) -> pd.DataFrame:
+    """Read an Excel worksheet trying multiple engines when required.
+
+    When the Streamlit UI sends an in-memory ``BytesIO`` buffer, pandas cannot
+    infer the appropriate engine from a file extension.  In that scenario we
+    explicitly attempt to parse the workbook first with ``openpyxl`` (for
+    ``.xlsx``) and then fall back to ``xlrd`` (for legacy ``.xls`` exports).
+
+    Parameters
+    ----------
+    path:
+        Either a filesystem path or a file-like object.
+    """
+
+    if isinstance(path, (str, os.PathLike)):
+        return pd.read_excel(path, sheet_name=0, header=None)
+
+    # When we receive an in-memory buffer we have to pick an engine manually.
+    last_exc: Exception | None = None
+    for engine in ("openpyxl", "xlrd"):
+        try:
+            if hasattr(path, "seek"):
+                path.seek(0)
+            return pd.read_excel(path, sheet_name=0, header=None, engine=engine)
+        except ImportError as exc:
+            last_exc = exc
+        except ValueError as exc:
+            last_exc = exc
+
+    raise IngestionError(f"Excel dosyası okunamadı: {last_exc}")
+
+
 def parse_cpi_excel(path: str | io.BufferedIOBase) -> pd.DataFrame:
     """Normalise CPI salesman Excel exports into a consistent dataframe.
 
@@ -216,7 +248,7 @@ def parse_cpi_excel(path: str | io.BufferedIOBase) -> pd.DataFrame:
 
     # Read the worksheet without assuming headers so we can promote the first
     # row to be the canonical header row.
-    df_raw = pd.read_excel(path, sheet_name=0, header=None)
+    df_raw = _read_excel_with_engines(path)
     if df_raw.empty:
         return pd.DataFrame(columns=["company", "customer", "sales_engineer", "OR_MTD", "OI_MTD"])
 
