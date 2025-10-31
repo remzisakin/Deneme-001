@@ -268,13 +268,20 @@ def parse_cpi_excel(path: str | io.BufferedIOBase) -> pd.DataFrame:
 
     # Extract the dimensional columns if available; fall back to None when the
     # CPI export omits the information (rare but observed in the field).
-    out = pd.DataFrame(
-        {
-            "company": df[col_company] if col_company else None,
-            "customer": df[col_customer] if col_customer else None,
-            "sales_engineer": df[col_sales] if col_sales else None,
-        }
-    )
+    dim_sources = {
+        "company": col_company,
+        "customer": col_customer,
+        "sales_engineer": col_sales,
+    }
+
+    out = pd.DataFrame(index=df.index)
+    present_dim_cols: set[str] = set()
+    for column, source in dim_sources.items():
+        if source and source in df.columns:
+            out[column] = df[source]
+            present_dim_cols.add(column)
+        else:
+            out[column] = pd.Series([None] * len(df), index=df.index, dtype="object")
 
     if df.shape[1] < 2:
         # Not enough columns to pick the MTD metrics; return empty frame.
@@ -291,9 +298,9 @@ def parse_cpi_excel(path: str | io.BufferedIOBase) -> pd.DataFrame:
 
     # Normalise textual dimensions by stripping whitespace and ensuring string
     # dtype. A future hook for ID->name replacements can be slotted here.
-    for column in ["company", "customer", "sales_engineer"]:
-        if column in out.columns:
-            out[column] = out[column].astype(str).str.strip()
+    for column in present_dim_cols:
+        cleaned = out[column].astype(str).str.strip()
+        out[column] = cleaned.where(out[column].notna(), None)
 
     # Example hook for future ID to name mapping, e.g. Sales Representative IDs.
     # mapping: dict[str, str] = {}
