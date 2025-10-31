@@ -11,29 +11,19 @@ from ..models.schemas import AnalysisFilters, KPIResponse, TrendSeries
 
 
 def _filters_to_sql(filters: AnalysisFilters) -> str:
-    clauses = ["1=1"]
-    if filters.start_date:
-        clauses.append("date >= DATE ?")
-    if filters.end_date:
-        clauses.append("date <= DATE ?")
-    if filters.region:
-        clauses.append("region = ?")
-    if filters.category:
-        clauses.append("category = ?")
-    return " AND ".join(clauses)
+    """Return a neutral WHERE clause to disable filtering.
+
+    The application now analyses the entire dataset for every request, so any
+    filter values supplied by the client are intentionally ignored.
+    """
+
+    return "1=1"
 
 
 def _filters_values(filters: AnalysisFilters) -> List[Any]:
-    values: List[Any] = []
-    if filters.start_date:
-        values.append(filters.start_date)
-    if filters.end_date:
-        values.append(filters.end_date)
-    if filters.region:
-        values.append(filters.region)
-    if filters.category:
-        values.append(filters.category)
-    return values
+    """Return an empty parameter list because filtering is disabled."""
+
+    return []
 
 
 def compute_kpis(filters: AnalysisFilters) -> KPIResponse:
