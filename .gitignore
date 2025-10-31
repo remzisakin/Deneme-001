@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.duckdb
+*.duckdb_wal
+.venv/
+.env
+logs/*.log
+sales-llm-app/logs/app.log
