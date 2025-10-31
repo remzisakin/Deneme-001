@@ -18,7 +18,7 @@ def _set_mock_env(monkeypatch):
 def test_build_analysis_prompt_contains_sections(tmp_path, monkeypatch):
     context = PromptContext(
         stats_json={"total_sales": 100},
-        anomalies_json={"items": []},
+        anomalies_json=[],
         pdf_context=["Önemli paragraf"],
     )
     prompt_text = prompts.build_analysis_prompt(context)
@@ -27,7 +27,7 @@ def test_build_analysis_prompt_contains_sections(tmp_path, monkeypatch):
 
 
 def test_run_analysis_returns_schema(monkeypatch):
-    context = PromptContext(stats_json={}, anomalies_json={}, pdf_context=[])
+    context = PromptContext(stats_json={}, anomalies_json=[], pdf_context=[])
     insight = prompts.run_analysis(context)
     assert insight.summary
     assert len(insight.actions) == 3
