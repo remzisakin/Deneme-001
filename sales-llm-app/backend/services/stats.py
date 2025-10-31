@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
 
 from ..db.duck import get_connection
 from ..models.schemas import AnalysisFilters, KPIResponse, TrendSeries
@@ -175,4 +177,40 @@ def compute_period_delta(filters: AnalysisFilters, days: int) -> Optional[float]
     if not previous_value:
         return None
     return (float(current_value or 0) - float(previous_value or 0)) / float(previous_value)
+
+
+def make_summaries(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Produce CPI sales summaries for the Streamlit dashboard."""
+
+    if df.empty:
+        # Return empty frames with the expected schema so the UI can render
+        # consistent tables even without data.
+        empty_cols = ["sales_engineer", "OR_MTD", "OI_MTD"]
+        by_engineer = pd.DataFrame(columns=empty_cols)
+        by_customer = pd.DataFrame(columns=["customer", "OR_MTD", "OI_MTD"])
+        totals = pd.DataFrame({"Metric": [], "Tutar": []})
+        return by_engineer, by_customer, totals
+
+    by_engineer = (
+        df.groupby("sales_engineer", dropna=False)[["OR_MTD", "OI_MTD"]]
+        .sum()
+        .sort_values("OR_MTD", ascending=False)
+        .reset_index()
+    )
+
+    by_customer = (
+        df.groupby("customer", dropna=False)[["OR_MTD", "OI_MTD"]]
+        .sum()
+        .sort_values("OR_MTD", ascending=False)
+        .reset_index()
+    )
+
+    totals = pd.DataFrame(
+        {
+            "Metric": ["Toplam OR_MTD", "Toplam OI_MTD"],
+            "Tutar": [df["OR_MTD"].sum(), df["OI_MTD"].sum()],
+        }
+    )
+
+    return by_engineer, by_customer, totals
 
