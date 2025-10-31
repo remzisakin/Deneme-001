@@ -1,0 +1,24 @@
+BAĞLAM (özet istatistikler):
+{stats_json}
+
+ANOMALİ/BULGU ÖZETİ:
+{anomaly_json}
+
+GÖREV:
+
+Yönetici özeti (maks 120 kelime)
+
+En çok büyüyen ürün/bölge (yüzdelerle)
+
+Düşüşte olan segmentler ve olası nedenler
+
+Kısa vadeli 3 aksiyon öner
+
+Gerekirse belirsizlikleri açıkça yaz
+ÇIKTIYI ŞU ŞEMAYA UYDUR (JSON):
+{{
+"summary": "...",
+"highlights": ["...", "..."],
+"risks": ["...", "..."],
+"actions": ["...", "...", "..."]
+}}

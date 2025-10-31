@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+streamlit
+plotly
+duckdb
+pandas
+pydantic
+python-dotenv
+pypdf
+httpx
+tenacity
+pytest
+openpyxl
